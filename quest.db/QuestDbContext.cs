@@ -19,6 +19,7 @@ public sealed class QuestDbContext : DbContext
             e.Property(x => x.Fates).HasColumnType("text");
             e.Property(x => x.Pacing).HasMaxLength(32);
             e.Property(x => x.Scale).HasMaxLength(32);
+            e.Property(x => x.GeneratorModel).HasMaxLength(128);
             e.Property(x => x.Status).HasConversion<int>();
             e.Property(x => x.CreatedAt);
         });
@@ -28,6 +29,9 @@ public sealed class QuestDbContext : DbContext
             e.ToTable("artifacts");
             e.HasKey(x => x.Id);
             e.Property(x => x.Kind).HasConversion<int>();
+            e.Property(x => x.ArtifactId).HasMaxLength(256);
+            e.HasIndex(x => new { x.WorldId, x.ArtifactId }).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(256);
             e.Property(x => x.Stage).HasConversion<int>();
             e.Property(x => x.Status).HasConversion<int>();
             e.Property(x => x.PayloadJson).HasColumnType("jsonb").IsRequired();

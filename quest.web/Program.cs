@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using quest.db;
 using quest.web.Features.WorldHeader;
+using quest.web.Features.WorldOverview;
 using quest.web.Services.Ollama;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,6 +17,7 @@ builder.Services
     .ValidateOnStart();
 
 builder.Services.AddScoped<WorldHeaderService>();
+builder.Services.AddScoped<WorldOverviewService>();
 
 builder.Services.AddHttpClient<OllamaClient>((sp, http) =>
 {

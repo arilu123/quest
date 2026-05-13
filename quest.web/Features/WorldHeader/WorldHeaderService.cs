@@ -50,7 +50,7 @@ public sealed class WorldHeaderService
         var world = await _db.Worlds.FirstOrDefaultAsync(w => w.Id == worldId, ct)
             ?? throw new InvalidOperationException($"World {worldId} not found");
 
-        var model = ResolveModel(request.Model);
+        var model = _ollamaOptions.HeaderModel;
         var preset = NormalizePreset(request.Preset);
         var fates = NormalizeFates(request.Fates);
         var pacing = NormalizePacing(request.Pacing);
@@ -63,6 +63,7 @@ public sealed class WorldHeaderService
                 : null;
             world.Pacing = pacing;
             world.Scale = scale;
+            world.GeneratorModel = ResolveModel(request.Model);
         }
 
         var userMessage = WorldHeaderPrompt.BuildUserMessage(request.UserHint, preset, fates, pacing, scale);

@@ -7,6 +7,7 @@ public sealed class OllamaOptions
     public string BaseUrl { get; set; } = "http://localhost:11434";
     public int RequestTimeoutSeconds { get; set; } = 600;
     public string DefaultModel { get; set; } = "";
+    public string HeaderModel { get; set; } = "";
     public string EmbeddingModel { get; set; } = "";
 
     /// <summary>

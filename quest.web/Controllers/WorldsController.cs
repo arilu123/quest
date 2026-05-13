@@ -37,7 +37,7 @@ public sealed class WorldsController : Controller
         ViewBag.Models = _ollama.Models
             .Select(m => new { name = m.Name, family = m.Family, note = m.Note })
             .ToArray();
-        ViewBag.DefaultModel = _ollama.DefaultModel;
+        ViewBag.DefaultModel = _ollama.Models.Count > 0 ? _ollama.Models[0].Name : "";
         return View();
     }
 

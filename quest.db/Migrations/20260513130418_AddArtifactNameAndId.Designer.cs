@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using quest.db;
@@ -11,9 +12,11 @@ using quest.db;
 namespace quest.db.Migrations
 {
     [DbContext(typeof(QuestDbContext))]
-    partial class QuestDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260513130418_AddArtifactNameAndId")]
+    partial class AddArtifactNameAndId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -79,7 +82,7 @@ namespace quest.db.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("WorldId", "ArtifactId")
+                    b.HasIndex("ArtifactId")
                         .IsUnique();
 
                     b.HasIndex("WorldId", "CreatedAt");
@@ -100,10 +103,6 @@ namespace quest.db.Migrations
 
                     b.Property<string>("Fates")
                         .HasColumnType("text");
-
-                    b.Property<string>("GeneratorModel")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
 
                     b.Property<string>("Pacing")
                         .HasMaxLength(32)

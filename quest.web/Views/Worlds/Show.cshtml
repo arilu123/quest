@@ -16,8 +16,17 @@
     </div>
 </div>
 
+<div id="world-box" class="card mb-3 border-primary">
+    <div class="card-body">
+        <div class="text-muted small">Сеттинг — Общее описание [Мира] <span class="badge bg-info text-dark">для ИИ</span></div>
+        <div id="world-content" class="mt-2">
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+            <span class="text-muted ms-1">генерирую описание…</span>
+        </div>
+    </div>
+</div>
+
 <p class="text-muted">
-    Шаг 2 (Уровни Сеттинга) ещё не реализован.
     <a asp-controller="Worlds" asp-action="Start">Создать ещё один мир</a>.
 </p>
 
@@ -25,30 +34,72 @@
     <script>
         (async function () {
             const id = '@Model.Id';
-            const box = document.getElementById('header-content');
-            try {
-                const r = await fetch(`/api/worlds/${id}`);
-                const j = await r.json();
-                if (!j.header) {
-                    box.innerHTML = '<em>Approved-заголовок не найден.</em>';
-                    return;
-                }
-                box.innerHTML = `
-                    <h3 class="h4 mb-2">${esc(j.header.name)}</h3>
-                    <p class="mb-2">${esc(j.header.tagline)}</p>
-                    <div class="text-muted small">
-                        v${j.header.version} · модель ${esc(j.header.model || '?')}
-                        ${j.header.preset ? ' · пресет ' + esc(j.header.preset) : ''}
-                        ${j.fates && j.fates.length ? ' · судьба ' + j.fates.map(esc).join(' + ') : ''}
-                        ${j.pacing ? ' · темп ' + esc(j.pacing) : ''}
-                        ${j.scale ? ' · масштаб ' + esc(j.scale) : ''}
-                    </div>`;
-            } catch (e) {
-                box.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`;
-            }
+            const headerBox = document.getElementById('header-content');
+            const worldBox = document.getElementById('world-content');
+
             function esc(s) {
                 return String(s ?? '').replace(/[&<>"']/g, c =>
                     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            }
+
+            let data;
+            try {
+                const r = await fetch(`/api/worlds/${id}`);
+                data = await r.json();
+            } catch (e) {
+                headerBox.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`;
+                worldBox.innerHTML = '';
+                return;
+            }
+
+            if (data.header) {
+                headerBox.innerHTML = `
+                    <h3 class="h4 mb-2">${esc(data.header.name)}</h3>
+                    <p class="mb-2">${esc(data.header.tagline)}</p>
+                    <div class="text-muted small">
+                        v${data.header.version} · модель ${esc(data.header.model || '?')}
+                        ${data.header.preset ? ' · пресет ' + esc(data.header.preset) : ''}
+                        ${data.fates && data.fates.length ? ' · судьба ' + data.fates.map(esc).join(' + ') : ''}
+                        ${data.pacing ? ' · темп ' + esc(data.pacing) : ''}
+                        ${data.scale ? ' · масштаб ' + esc(data.scale) : ''}
+                    </div>`;
+            } else {
+                headerBox.innerHTML = '<em>Approved-заголовок не найден.</em>';
+            }
+
+            function renderWorld(w) {
+                const dur = w.durationMs ? (w.durationMs/1000).toFixed(1) + ' с' : '';
+                const promptId = 'world-prompt-' + Date.now();
+                return `
+                    <h5 class="mb-1">${esc(w.name)} <small class="text-muted font-monospace">${esc(w.artifactId)}</small></h5>
+                    <p class="mb-2" style="white-space:pre-wrap">${esc(w.description)}</p>
+                    <div class="text-muted small">модель ${esc(w.model || '?')} · ${dur} · <a href="#" data-bs-toggle="collapse" data-bs-target="#${promptId}">промпт</a></div>
+                    <div class="collapse mt-2" id="${promptId}">
+                        <pre class="small bg-light border rounded p-2" style="white-space:pre-wrap;max-height:400px;overflow:auto">${esc(w.prompt || '')}</pre>
+                    </div>`;
+            }
+
+            if (data.world) {
+                worldBox.innerHTML = renderWorld(data.world);
+            } else {
+                worldBox.innerHTML = `
+                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                    <span class="text-muted ms-1">Генерирую описание мира…</span>`;
+                let attempts = 0;
+                const poll = setInterval(async () => {
+                    attempts++;
+                    try {
+                        const r = await fetch(`/api/worlds/${id}`);
+                        const d = await r.json();
+                        if (d.world) {
+                            clearInterval(poll);
+                            worldBox.innerHTML = renderWorld(d.world);
+                        } else if (attempts > 40) {
+                            clearInterval(poll);
+                            worldBox.innerHTML = `<span class="text-danger">Не удалось сгенерировать описание. <button class="btn btn-sm btn-outline-primary" onclick="location.reload()">Повторить</button></span>`;
+                        }
+                    } catch { }
+                }, 3000);
             }
         })();
     </script>

@@ -7,6 +7,7 @@ public sealed class World
     public string? Fates { get; set; }
     public string? Pacing { get; set; }
     public string? Scale { get; set; }
+    public string? GeneratorModel { get; set; }
     public WorldStatus Status { get; set; } = WorldStatus.Initializing;
     public DateTimeOffset CreatedAt { get; set; }
 

@@ -6,6 +6,8 @@ public sealed class Artifact
     public Guid WorldId { get; set; }
 
     public ArtifactKind Kind { get; set; }
+    public string? ArtifactId { get; set; }
+    public string? Name { get; set; }
     public ArtifactStage Stage { get; set; }
     public int Version { get; set; }
     public ArtifactStatus Status { get; set; }

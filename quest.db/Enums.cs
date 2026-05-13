@@ -10,10 +10,15 @@ public enum WorldStatus
 public enum ArtifactKind
 {
     WorldHeader = 1,
-    SettingLevels = 2,
-    Population = 3,
-    Backstory = 4,
-    StoriesAndTasks = 5,
+    World = 2,
+    WorldPartL1 = 3,
+    WorldPartL2 = 4,
+    WorldPartL3 = 5,
+    WorldPartL4 = 6,
+    WorldPartL5 = 7,
+    Population = 10,
+    Backstory = 11,
+    StoriesAndTasks = 12,
 }
 
 public enum ArtifactStage

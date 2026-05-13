@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using quest.db;
 using quest.web.Features.WorldHeader;
+using quest.web.Features.WorldOverview;
 
 namespace quest.web.Controllers;
 
@@ -16,15 +17,18 @@ public sealed class WorldsApiController : ControllerBase
     };
 
     private readonly WorldHeaderService _headerService;
+    private readonly WorldOverviewService _overviewService;
     private readonly QuestDbContext _db;
     private readonly ILogger<WorldsApiController> _log;
 
     public WorldsApiController(
         WorldHeaderService headerService,
+        WorldOverviewService overviewService,
         QuestDbContext db,
         ILogger<WorldsApiController> log)
     {
         _headerService = headerService;
+        _overviewService = overviewService;
         _db = db;
         _log = log;
     }
@@ -65,6 +69,22 @@ public sealed class WorldsApiController : ControllerBase
         try
         {
             var response = await _headerService.ApproveAsync(worldId, draftId, request, ct);
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var scope = HttpContext.RequestServices.GetRequiredService<IServiceScopeFactory>().CreateScope();
+                    var svc = scope.ServiceProvider.GetRequiredService<WorldOverviewService>();
+                    await svc.GenerateAsync(worldId, CancellationToken.None);
+                    _log.LogInformation("World overview generated for world {WorldId}", worldId);
+                }
+                catch (Exception ex)
+                {
+                    _log.LogError(ex, "Failed to generate world overview for {WorldId}", worldId);
+                }
+            }, CancellationToken.None);
+
             return Ok(response);
         }
         catch (InvalidOperationException ex)
@@ -72,6 +92,29 @@ public sealed class WorldsApiController : ControllerBase
             _log.LogWarning(ex, "Approve failed for draft {DraftId}", draftId);
             return Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest,
                 title: "Approve failed");
+        }
+    }
+
+    [HttpPost("{worldId:guid}/world/generate")]
+    public async Task<IActionResult> GenerateWorld(Guid worldId, CancellationToken ct)
+    {
+        try
+        {
+            var artifact = await _overviewService.GenerateAsync(worldId, ct);
+            return Ok(new
+            {
+                id = artifact.Id,
+                artifactId = artifact.ArtifactId,
+                name = artifact.Name,
+                model = artifact.Model,
+                durationMs = artifact.DurationMs,
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _log.LogWarning(ex, "World overview generation failed for world {WorldId}", worldId);
+            return Problem(detail: ex.Message, statusCode: StatusCodes.Status502BadGateway,
+                title: "Generation failed");
         }
     }
 
@@ -116,6 +159,33 @@ public sealed class WorldsApiController : ControllerBase
             };
         }
 
+        var worldArtifact = await _db.Artifacts
+            .AsNoTracking()
+            .Where(a => a.WorldId == worldId
+                        && a.Kind == ArtifactKind.World
+                        && a.Status == ArtifactStatus.Approved)
+            .OrderByDescending(a => a.Version)
+            .Select(a => new { a.Id, a.ArtifactId, a.Name, a.PayloadJson, a.Model, a.Prompt, a.DurationMs, a.CreatedAt })
+            .FirstOrDefaultAsync(ct);
+
+        object? worldOut = null;
+        if (worldArtifact is not null)
+        {
+            var doc = JsonDocument.Parse(worldArtifact.PayloadJson);
+            var description = doc.RootElement.TryGetProperty("description", out var d) ? d.GetString() : null;
+            worldOut = new
+            {
+                id = worldArtifact.Id,
+                artifactId = worldArtifact.ArtifactId,
+                name = worldArtifact.Name,
+                description,
+                model = worldArtifact.Model,
+                prompt = worldArtifact.Prompt,
+                durationMs = worldArtifact.DurationMs,
+                createdAt = worldArtifact.CreatedAt,
+            };
+        }
+
         return Ok(new
         {
             id = world.Id,
@@ -126,6 +196,7 @@ public sealed class WorldsApiController : ControllerBase
             status = world.Status.ToString(),
             createdAt = world.CreatedAt,
             header = headerOut,
+            world = worldOut,
         });
     }
 }
