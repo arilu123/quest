@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using quest.db;
@@ -11,9 +12,11 @@ using quest.db;
 namespace quest.db.Migrations
 {
     [DbContext(typeof(QuestDbContext))]
-    partial class QuestDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260513101818_AddWorldPacing")]
+    partial class AddWorldPacing
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

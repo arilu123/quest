@@ -1,5 +1,7 @@
 @{
     var presets = (Array)ViewBag.Presets;
+    var fates   = (Array)ViewBag.Fates;
+    var pacings = (Array)ViewBag.Pacings;
     var models  = (Array)ViewBag.Models;
     var defaultModel = (string)ViewBag.DefaultModel;
 }
@@ -11,13 +13,13 @@
 
 <form id="form-generate" class="mb-4">
     <div class="mb-3">
-        <label class="form-label">Пожелания к миру</label>
+        <label class="form-label">Пожелания к миру <small class="text-muted">(свободный текст; чипы ниже выбираются независимо)</small></label>
         <textarea id="user-hint" class="form-control" rows="3"
                   placeholder="Опиши, какой мир хочешь. Можно оставить пустым — будет сюрприз."></textarea>
     </div>
 
     <div class="mb-3">
-        <label class="form-label">Пресет (необязательно)</label>
+        <label class="form-label">Пресет стиля (необязательно)</label>
         <div id="preset-chips" class="d-flex flex-wrap gap-2">
             @foreach (dynamic p in presets)
             {
@@ -25,6 +27,30 @@
                         data-key="@p.key" data-hint="@p.hint">@p.label</button>
             }
             <button type="button" class="btn btn-outline-secondary btn-sm" id="preset-clear">× очистить</button>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Тон судьбы <small class="text-muted">(тип переживания, влияет на тон всей [Истории])</small></label>
+        <div id="fate-chips" class="d-flex flex-wrap gap-2">
+            @foreach (dynamic f in fates)
+            {
+                <button type="button" class="btn btn-outline-secondary btn-sm fate-chip"
+                        data-key="@f.key" title="@f.hint">@f.emoji&nbsp;@f.label</button>
+            }
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="fate-clear">× очистить</button>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Темп завязки <small class="text-muted">(точка входа и ритм начала [Истории])</small></label>
+        <div id="pacing-chips" class="d-flex flex-wrap gap-2">
+            @foreach (dynamic p in pacings)
+            {
+                <button type="button" class="btn btn-outline-secondary btn-sm pacing-chip"
+                        data-key="@p.key" title="@p.hint">@p.emoji&nbsp;@p.label</button>
+            }
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="pacing-clear">× очистить</button>
         </div>
     </div>
 
@@ -46,6 +72,10 @@
         </select>
     </div>
 
+    <div class="alert alert-light border small mb-3" id="preview-line">
+        <span class="text-muted">В ИИ уйдёт:</span> <span id="preview-content" class="text-muted">(ничего не выбрано — будет сюрприз)</span>
+    </div>
+
     <button type="submit" class="btn btn-primary" id="btn-generate">
         Создать варианты
     </button>
@@ -59,6 +89,10 @@
         (function () {
             const presetChips = document.querySelectorAll('.preset-chip');
             const presetClear = document.getElementById('preset-clear');
+            const fateChips = document.querySelectorAll('.fate-chip');
+            const fateClear = document.getElementById('fate-clear');
+            const pacingChips = document.querySelectorAll('.pacing-chip');
+            const pacingClear = document.getElementById('pacing-clear');
             const hintEl = document.getElementById('user-hint');
             const modelEl = document.getElementById('model');
             const form = document.getElementById('form-generate');
@@ -67,12 +101,14 @@
             const optionsEl = document.getElementById('options');
 
             let selectedPreset = null;
+            let selectedFate = null;
+            let selectedPacing = null;
             let worldId = null;
             let draftId = null;
 
-            function updateChipsUi() {
-                presetChips.forEach(c => {
-                    if (c.dataset.key === selectedPreset) {
+            function updateActiveChip(chips, selectedKey) {
+                chips.forEach(c => {
+                    if (c.dataset.key === selectedKey) {
                         c.classList.remove('btn-outline-secondary');
                         c.classList.add('btn-secondary');
                     } else {
@@ -82,19 +118,66 @@
                 });
             }
 
+            const previewContent = document.getElementById('preview-content');
+
+            function labelOf(chips, key) {
+                for (const c of chips) if (c.dataset.key === key) return c.textContent.trim();
+                return key;
+            }
+
+            function updatePreview() {
+                const parts = [];
+                if (selectedPreset) parts.push(`<b>стиль:</b> ${labelOf(presetChips, selectedPreset)}`);
+                if (selectedFate)   parts.push(`<b>судьба:</b> ${labelOf(fateChips, selectedFate)}`);
+                if (selectedPacing) parts.push(`<b>темп:</b> ${labelOf(pacingChips, selectedPacing)}`);
+                const hint = hintEl.value.trim();
+                if (hint) parts.push(`<b>пожелания:</b> «${escapeHtml(hint)}»`);
+                previewContent.innerHTML = parts.length
+                    ? parts.join(' · ')
+                    : '(ничего не выбрано — будет сюрприз)';
+                previewContent.className = parts.length ? '' : 'text-muted';
+            }
+
             presetChips.forEach(chip => {
                 chip.addEventListener('click', () => {
                     selectedPreset = chip.dataset.key;
-                    hintEl.value = chip.dataset.hint;
-                    updateChipsUi();
+                    updateActiveChip(presetChips, selectedPreset);
+                    updatePreview();
                 });
             });
-
             presetClear.addEventListener('click', () => {
                 selectedPreset = null;
-                hintEl.value = '';
-                updateChipsUi();
+                updateActiveChip(presetChips, null);
+                updatePreview();
             });
+
+            fateChips.forEach(chip => {
+                chip.addEventListener('click', () => {
+                    selectedFate = chip.dataset.key;
+                    updateActiveChip(fateChips, selectedFate);
+                    updatePreview();
+                });
+            });
+            fateClear.addEventListener('click', () => {
+                selectedFate = null;
+                updateActiveChip(fateChips, null);
+                updatePreview();
+            });
+
+            pacingChips.forEach(chip => {
+                chip.addEventListener('click', () => {
+                    selectedPacing = chip.dataset.key;
+                    updateActiveChip(pacingChips, selectedPacing);
+                    updatePreview();
+                });
+            });
+            pacingClear.addEventListener('click', () => {
+                selectedPacing = null;
+                updateActiveChip(pacingChips, null);
+                updatePreview();
+            });
+
+            hintEl.addEventListener('input', updatePreview);
 
             async function ensureWorld() {
                 if (worldId) return worldId;
@@ -138,6 +221,8 @@
                     const body = {
                         userHint: hintEl.value.trim() || null,
                         preset: selectedPreset,
+                        fate: selectedFate,
+                        pacing: selectedPacing,
                         model: modelEl.value
                     };
                     const t0 = performance.now();

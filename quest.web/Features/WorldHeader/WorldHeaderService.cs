@@ -18,18 +18,15 @@ public sealed class WorldHeaderService
     private readonly QuestDbContext _db;
     private readonly OllamaClient _ollama;
     private readonly OllamaOptions _ollamaOptions;
-    private readonly ILogger<WorldHeaderService> _log;
 
     public WorldHeaderService(
         QuestDbContext db,
         OllamaClient ollama,
-        IOptions<OllamaOptions> ollamaOptions,
-        ILogger<WorldHeaderService> log)
+        IOptions<OllamaOptions> ollamaOptions)
     {
         _db = db;
         _ollama = ollama;
         _ollamaOptions = ollamaOptions.Value;
-        _log = log;
     }
 
     public async Task<World> CreateWorldAsync(CancellationToken ct)
@@ -55,7 +52,18 @@ public sealed class WorldHeaderService
 
         var model = ResolveModel(request.Model);
         var preset = NormalizePreset(request.Preset);
-        var userMessage = WorldHeaderPrompt.BuildUserMessage(request.UserHint, preset);
+        var fate = NormalizeFate(request.Fate);
+        var pacing = NormalizePacing(request.Pacing);
+
+        // Тон судьбы и темп завязки — сквозные атрибуты сессии.
+        // Перезаписываем при каждой генерации до approve (после approve финал инита).
+        if (world.Status == WorldStatus.Initializing)
+        {
+            world.Fate = fate;
+            world.Pacing = pacing;
+        }
+
+        var userMessage = WorldHeaderPrompt.BuildUserMessage(request.UserHint, preset, fate, pacing);
 
         var result = await _ollama.GenerateAsync(
             model: model,
@@ -75,7 +83,7 @@ public sealed class WorldHeaderService
             Version = 0,
             Status = ArtifactStatus.Draft,
             PayloadJson = JsonSerializer.Serialize(
-                new DraftPayload(request.UserHint, preset, parsed),
+                new DraftPayload(request.UserHint, preset, fate, pacing, parsed),
                 JsonOpts),
             Model = result.Model,
             Prompt = "[SYSTEM]\n" + WorldHeaderPrompt.System + "\n\n[USER]\n" + userMessage,
@@ -143,7 +151,7 @@ public sealed class WorldHeaderService
             Version = nextVersion,
             Status = ArtifactStatus.Approved,
             PayloadJson = JsonSerializer.Serialize(
-                new ApprovedPayload(chosen.Name, chosen.Tagline, draftPayload.UserHint, draftPayload.Preset, rejected),
+                new ApprovedPayload(chosen.Name, chosen.Tagline, draftPayload.UserHint, draftPayload.Preset, draftPayload.Fate, draftPayload.Pacing, rejected),
                 JsonOpts),
             Model = draft.Model,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -174,6 +182,20 @@ public sealed class WorldHeaderService
         if (string.IsNullOrWhiteSpace(presetKey)) return null;
         var key = presetKey.Trim();
         return WorldHeaderPresets.All.ContainsKey(key) ? key : null;
+    }
+
+    private static string? NormalizeFate(string? fateKey)
+    {
+        if (string.IsNullOrWhiteSpace(fateKey)) return null;
+        var key = fateKey.Trim();
+        return WorldHeaderFates.All.ContainsKey(key) ? key : null;
+    }
+
+    private static string? NormalizePacing(string? pacingKey)
+    {
+        if (string.IsNullOrWhiteSpace(pacingKey)) return null;
+        var key = pacingKey.Trim();
+        return WorldHeaderPacings.All.ContainsKey(key) ? key : null;
     }
 
     private static IReadOnlyList<WorldHeaderOption> ParseOptions(string responseText)

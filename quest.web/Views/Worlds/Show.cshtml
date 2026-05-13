@@ -39,6 +39,8 @@
                     <div class="text-muted small">
                         v${j.header.version} · модель ${esc(j.header.model || '?')}
                         ${j.header.preset ? ' · пресет ' + esc(j.header.preset) : ''}
+                        ${j.fate ? ' · судьба ' + esc(j.fate) : ''}
+                        ${j.pacing ? ' · темп ' + esc(j.pacing) : ''}
                     </div>`;
             } catch (e) {
                 box.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`;

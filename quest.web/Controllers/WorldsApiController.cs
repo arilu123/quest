@@ -113,6 +113,8 @@ public sealed class WorldsApiController : ControllerBase
         {
             id = world.Id,
             title = world.Title,
+            fate = world.Fate,
+            pacing = world.Pacing,
             status = world.Status.ToString(),
             createdAt = world.CreatedAt,
             header = headerOut,

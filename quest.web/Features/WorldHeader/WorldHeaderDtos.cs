@@ -12,6 +12,8 @@ public sealed record ModelOptionsResponse(
 public sealed record GenerateRequest(
     string? UserHint,
     string? Preset,
+    string? Fate,
+    string? Pacing,
     string? Model);
 
 public sealed record GenerateResponse(
@@ -31,6 +33,8 @@ public sealed record ApproveResponse(
 public sealed record DraftPayload(
     string? UserHint,
     string? Preset,
+    string? Fate,
+    string? Pacing,
     IReadOnlyList<WorldHeaderOption> Options);
 
 public sealed record ApprovedPayload(
@@ -38,4 +42,6 @@ public sealed record ApprovedPayload(
     string Tagline,
     string? UserHint,
     string? Preset,
+    string? Fate,
+    string? Pacing,
     IReadOnlyList<WorldHeaderOption> RejectedOptions);
