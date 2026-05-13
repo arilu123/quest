@@ -2,6 +2,7 @@
     var presets = (Array)ViewBag.Presets;
     var fates   = (Array)ViewBag.Fates;
     var pacings = (Array)ViewBag.Pacings;
+    var scales  = (Array)ViewBag.Scales;
     var models  = (Array)ViewBag.Models;
     var defaultModel = (string)ViewBag.DefaultModel;
 }
@@ -59,6 +60,17 @@
     </div>
 
     <div class="mb-3">
+        <label class="form-label">Масштаб <small class="text-muted">(размер мира, влияет на глубину и длительность квеста)</small></label>
+        <div id="scale-chips" class="d-flex flex-wrap gap-2">
+            @foreach (dynamic s in scales)
+            {
+                <button type="button" class="btn btn-outline-secondary btn-sm scale-chip"
+                        data-key="@s.key" title="@s.hint">@s.emoji&nbsp;@s.label</button>
+            }
+        </div>
+    </div>
+
+    <div class="mb-3">
         <label class="form-label">Модель <small class="text-muted">(сверху — лучше для нашей задачи)</small></label>
         <select id="model" class="form-select">
             @foreach (dynamic m in models)
@@ -97,6 +109,7 @@
             const fateClear = document.getElementById('fate-clear');
             const pacingChips = document.querySelectorAll('.pacing-chip');
             const pacingClear = document.getElementById('pacing-clear');
+            const scaleChips = document.querySelectorAll('.scale-chip');
             const hintEl = document.getElementById('user-hint');
             const modelEl = document.getElementById('model');
             const form = document.getElementById('form-generate');
@@ -107,6 +120,7 @@
             let selectedPreset = null;
             let selectedFates = [];
             let selectedPacing = null;
+            let selectedScale = 'regional';
             let worldId = null;
             let draftId = null;
 
@@ -150,6 +164,7 @@
                 if (selectedPreset) parts.push(`<b>стиль:</b> ${labelOf(presetChips, selectedPreset)}`);
                 if (selectedFates.length) parts.push(`<b>судьба:</b> ${selectedFates.map(k => labelOf(fateChips, k)).join(' + ')}`);
                 if (selectedPacing) parts.push(`<b>темп:</b> ${labelOf(pacingChips, selectedPacing)}`);
+                if (selectedScale) parts.push(`<b>масштаб:</b> ${labelOf(scaleChips, selectedScale)}`);
                 const hint = hintEl.value.trim();
                 if (hint) parts.push(`<b>пожелания:</b> «${escapeHtml(hint)}»`);
                 previewContent.innerHTML = parts.length
@@ -203,6 +218,17 @@
                 updatePreview();
             });
 
+            scaleChips.forEach(chip => {
+                chip.addEventListener('click', () => {
+                    selectedScale = chip.dataset.key;
+                    updateActiveChip(scaleChips, selectedScale);
+                    updatePreview();
+                });
+            });
+
+            updateActiveChip(scaleChips, selectedScale);
+            updatePreview();
+
             hintEl.addEventListener('input', updatePreview);
 
             async function ensureWorld() {
@@ -249,6 +275,7 @@
                         preset: selectedPreset,
                         fates: selectedFates.length > 0 ? selectedFates : null,
                         pacing: selectedPacing,
+                        scale: selectedScale,
                         model: modelEl.value
                     };
                     const t0 = performance.now();

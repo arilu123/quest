@@ -32,14 +32,14 @@ public static class WorldHeaderPrompt
           Если указано два тона судьбы — СМЕШАЙ их: ищи общее
           настроение на пересечении обоих тонов.
             • Тон action / inception → динамичный, рваный ритм, глаголы.
-            • Тон pre_storm → напряжённый, выжидающий.
+            • Тон pre_storm → напряжённый, выжидающий, готовый к прорыву.
             • Тон slow_build / from_afar → медитативный, плавный.
-            • Тон survival → давление, нехватка, голос на краю.
-            • Тон mystery → намёки, недосказанность.
+            • Тон survival → давление, нехватка ресурсов, на самом краю, выживая.
+            • Тон mystery → намёки, недосказанность, загадочность, туманность, детективный.
             • Тон moral → дилемма как фон, без раскрытия.
-            • Тон drama → акцент на чувстве, отношении.
-            • Тон adventure → размах, манящие горизонты.
-            • Тон intimate → тёплый, камерный, малый масштаб.
+            • Тон drama → акцент на чувствах, отношениях.
+            • Тон adventure → размах, манящие горизонты, эпичность.
+            • Тон intimate → тёплый, камерный, игривый.
         - Три варианта различаются РАКУРСОМ, главным крючком, образами —
           но все три остаются в выбранных жанре, тоне и темпе.
         - Учти свободные пожелания игрока, если они даны.
@@ -59,7 +59,7 @@ public static class WorldHeaderPrompt
         }
         """;
 
-    public static string BuildUserMessage(string? userHint, string? presetKey, string[]? fateKeys, string? pacingKey)
+    public static string BuildUserMessage(string? userHint, string? presetKey, string[]? fateKeys, string? pacingKey, string? scaleKey)
     {
         var hint = string.IsNullOrWhiteSpace(userHint) ? "нет, сюрприз" : userHint.Trim();
         var preset = string.IsNullOrWhiteSpace(presetKey) ? "не выбран" : presetKey.Trim();
@@ -88,7 +88,13 @@ public static class WorldHeaderPrompt
         else
             pacingLine = "Темп завязки: не выбран";
 
-        return $"Пожелания игрока: «{hint}»\nПресет стиля: {preset}\n{fateLine}\n{pacingLine}";
+        string scaleLine;
+        if (!string.IsNullOrWhiteSpace(scaleKey) && WorldHeaderScales.All.TryGetValue(scaleKey.Trim(), out var sc))
+            scaleLine = $"Масштаб: {scaleKey} — {sc.Label} ({sc.Hint}), уровней локаций: {sc.Levels}";
+        else
+            scaleLine = "Масштаб: не выбран";
+
+        return $"Пожелания игрока: «{hint}»\nПресет стиля: {preset}\n{fateLine}\n{pacingLine}\n{scaleLine}";
     }
 
     public static JsonNode JsonSchema() => JsonNode.Parse("""

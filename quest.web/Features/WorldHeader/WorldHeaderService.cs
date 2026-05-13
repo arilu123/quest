@@ -54,6 +54,7 @@ public sealed class WorldHeaderService
         var preset = NormalizePreset(request.Preset);
         var fates = NormalizeFates(request.Fates);
         var pacing = NormalizePacing(request.Pacing);
+        var scale = NormalizeScale(request.Scale);
 
         if (world.Status == WorldStatus.Initializing)
         {
@@ -61,9 +62,10 @@ public sealed class WorldHeaderService
                 ? JsonSerializer.Serialize(fates)
                 : null;
             world.Pacing = pacing;
+            world.Scale = scale;
         }
 
-        var userMessage = WorldHeaderPrompt.BuildUserMessage(request.UserHint, preset, fates, pacing);
+        var userMessage = WorldHeaderPrompt.BuildUserMessage(request.UserHint, preset, fates, pacing, scale);
 
         var result = await _ollama.GenerateAsync(
             model: model,
@@ -83,7 +85,7 @@ public sealed class WorldHeaderService
             Version = 0,
             Status = ArtifactStatus.Draft,
             PayloadJson = JsonSerializer.Serialize(
-                new DraftPayload(request.UserHint, preset, fates, pacing, parsed),
+                new DraftPayload(request.UserHint, preset, fates, pacing, scale, parsed),
                 JsonOpts),
             Model = result.Model,
             Prompt = "[SYSTEM]\n" + WorldHeaderPrompt.System + "\n\n[USER]\n" + userMessage,
@@ -151,7 +153,7 @@ public sealed class WorldHeaderService
             Version = nextVersion,
             Status = ArtifactStatus.Approved,
             PayloadJson = JsonSerializer.Serialize(
-                new ApprovedPayload(chosen.Name, chosen.Tagline, draftPayload.UserHint, draftPayload.Preset, draftPayload.Fates, draftPayload.Pacing, rejected),
+                new ApprovedPayload(chosen.Name, chosen.Tagline, draftPayload.UserHint, draftPayload.Preset, draftPayload.Fates, draftPayload.Pacing, draftPayload.Scale, rejected),
                 JsonOpts),
             Model = draft.Model,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -203,6 +205,13 @@ public sealed class WorldHeaderService
         if (string.IsNullOrWhiteSpace(pacingKey)) return null;
         var key = pacingKey.Trim();
         return WorldHeaderPacings.All.ContainsKey(key) ? key : null;
+    }
+
+    private static string? NormalizeScale(string? scaleKey)
+    {
+        if (string.IsNullOrWhiteSpace(scaleKey)) return null;
+        var key = scaleKey.Trim();
+        return WorldHeaderScales.All.ContainsKey(key) ? key : null;
     }
 
     private static IReadOnlyList<WorldHeaderOption> ParseOptions(string responseText)

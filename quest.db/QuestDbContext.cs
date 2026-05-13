@@ -18,6 +18,7 @@ public sealed class QuestDbContext : DbContext
             e.Property(x => x.Title).HasMaxLength(120);
             e.Property(x => x.Fates).HasColumnType("text");
             e.Property(x => x.Pacing).HasMaxLength(32);
+            e.Property(x => x.Scale).HasMaxLength(32);
             e.Property(x => x.Status).HasConversion<int>();
             e.Property(x => x.CreatedAt);
         });

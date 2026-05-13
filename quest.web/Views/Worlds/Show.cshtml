@@ -41,6 +41,7 @@
                         ${j.header.preset ? ' · пресет ' + esc(j.header.preset) : ''}
                         ${j.fates && j.fates.length ? ' · судьба ' + j.fates.map(esc).join(' + ') : ''}
                         ${j.pacing ? ' · темп ' + esc(j.pacing) : ''}
+                        ${j.scale ? ' · масштаб ' + esc(j.scale) : ''}
                     </div>`;
             } catch (e) {
                 box.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`;

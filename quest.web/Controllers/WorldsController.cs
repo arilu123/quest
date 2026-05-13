@@ -31,6 +31,9 @@ public sealed class WorldsController : Controller
         ViewBag.Pacings = WorldHeaderPacings.All
             .Select(kv => new { key = kv.Key, emoji = kv.Value.Emoji, label = kv.Value.Label, hint = kv.Value.Hint })
             .ToArray();
+        ViewBag.Scales = WorldHeaderScales.All
+            .Select(kv => new { key = kv.Key, emoji = kv.Value.Emoji, label = kv.Value.Label, hint = kv.Value.Hint })
+            .ToArray();
         ViewBag.Models = _ollama.Models
             .Select(m => new { name = m.Name, family = m.Family, note = m.Note })
             .ToArray();

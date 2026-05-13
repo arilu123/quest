@@ -13,7 +13,7 @@
 | Спека | Что | Ключевые файлы |
 |---|---|---|
 | [specs/F-0-skeleton.md](specs/F-0-skeleton.md) | Каркас .NET 9 + EF Core 9 + Postgres + Ollama-клиент + диагностика | `quest.web/Program.cs`, `quest.db/QuestDbContext.cs`, `Services/Ollama/` |
-| [specs/F-1.1-world-header.md](specs/F-1.1-world-header.md) | Шаг 1 ИНИТ Мира: форма + пресеты стиля + **тон судьбы** + **темп завязки** + 3 варианта в стиле задней обложки книги + approve | `Features/WorldHeader/`, `Controllers/WorldsController.cs`, `Controllers/WorldsApiController.cs`, `Views/Worlds/{Start,Show}.cshtml` |
+| [specs/F-1.1-world-header.md](specs/F-1.1-world-header.md) | Шаг 1 ИНИТ Мира: форма + пресеты стиля + **тоны судьбы (0–2)** + **темп завязки** + **масштаб** + 3 варианта в стиле задней обложки книги + approve | `Features/WorldHeader/`, `Controllers/WorldsController.cs`, `Controllers/WorldsApiController.cs`, `Views/Worlds/{Start,Show}.cshtml` |
 
 [specs/F-1-start.md](specs/F-1-start.md) — исходная спека пользователя, описывает все 3 этапа создания Мира в общих чертах. Я дроблю её на под-фичи (F-1.1, F-1.2, …).
 
@@ -41,8 +41,9 @@
 - **Язык MVP**: только русский. Мультиязычность отложена.
 - **TypeScript**: отложен. Vanilla JS в Razor-страницах. Включим, когда фронта будет много.
 - **Аутентификация**: нет, single-user.
-- **Тоны судьбы (Fates)** — сквозной атрибут [Истории], выбирается на форме старта **от 0 до 2** из 6 вариантов (adventure/moral/mystery/drama/survival/intimate). Хранится на `World.Fates` как JSON-массив в колонке `text` (раньше был `World.Fate` — одиночный `varchar(32)`). Миграция `FateToArray` — дропает `Fate`, добавляет `Fates`. В промпте два тона соединяются через «+», а system-промпт говорит «смешай их: ищи общее настроение на пересечении». DTO: `GenerateRequest.Fates` (`List<string>?`), `DraftPayload.Fates` / `ApprovedPayload.Fates` (`string[]?`). UI: toggle-чипы (клик = вкл/выкл), максимум 2 активных.
-- **Темп завязки (Pacing)** — ещё один сквозной атрибут, 5 вариантов (action/inception/pre_storm/slow_build/from_afar) или пусто. Хранится на `World.Pacing`, логика та же что у Fate. Список — `Features/WorldHeader/WorldHeaderPacings.cs`.
+- **Масштаб (Scale)** — 4-я ось выбора на форме старта. 5 вариантов: room/compact/regional/grand/cosmic (1–5 уровней локаций). Влияет на глубину и длительность квеста. Хранится на `World.Scale` (varchar 32), логика как у Pacing. Список — `Features/WorldHeader/WorldHeaderScales.cs`. Каждый вариант знает своё количество уровней (`Levels` int).
+- **Тоны судьбы (Fates)** — сквозной атрибут [Истории], выбирается на форме старта **от 0 до 2** из 6 вариантов (adventure/moral/mystery/drama/survival/intimate). Хранится на `World.Fates` как JSON-массив в колонке `text` (раньше был `World.Fate` — одиночный `varchar(32)`). Миграция `FateToArray` — дропает `Fate`, добавляет `Fates`. В промпте два тона соединяются через «+», а system-промпт говорит «смешай их: ищи общее настроение на пересечении». DTO: `GenerateRequest.Fates` (`List<string>?`), `DraftPayload.Fates` / `ApprovedPayload.Fates` (`string[]?`). UI: toggle-чипы (клик = вкл/выкл), максимум 2 активных, невыбранные при 2 активных — приглушены + красный hover.
+- **Темп завязки (Pacing)** — сквозной атрибут, 5 вариантов (action/inception/pre_storm/slow_build/from_afar) или пусто. Хранится на `World.Pacing`.
 - **Аннотация = задняя обложка книги**. В system-промпте явно требуется: 1–2 предложения, хук, интрига без спойлеров. Выбранные стиль/судьба/темп должны **звучать в тексте** (атмосферой и образами), но не упоминаться дословно. `tagline.maxLength` в JSON Schema = 320 (было 240). Это критично — раньше при смене Fate текст не менялся видимо для пользователя, потому что промпт не требовал отражения. Сейчас требует.
 - **Чипы на форме не пишут в textarea** «Пожелания к миру». Раньше клик по Style-пресету REPLACE-ил текст в поле (что было неконсистентно и могло убивать ручной ввод). Сейчас все три чипа (Стиль/Судьба/Темп) — просто маркеры выбора + tooltip. Под формой добавлена строка-предпросмотр «В ИИ уйдёт: ...» — динамически обновляется при клике чипа и при печати.
 - **Bootstrap Icons**: в проект пока НЕ подключал — иконки не используются.
@@ -65,7 +66,7 @@
 - API смоук:
   ```
   curl -X POST http://localhost:5099/api/worlds
-  curl -X POST http://localhost:5099/api/worlds/<id>/header/generate -H 'Content-Type: application/json' -d '{"userHint":"...", "preset":"mythic", "fates":["mystery","survival"], "model":"mistral-small3.2:24b-instruct-2506-q4_K_M"}'
+  curl -X POST http://localhost:5099/api/worlds/<id>/header/generate -H 'Content-Type: application/json' -d '{"userHint":"...", "preset":"mythic", "fates":["mystery","survival"], "pacing":"inception", "scale":"regional", "model":"mistral-small3.2:24b-instruct-2506-q4_K_M"}'
   curl -X POST http://localhost:5099/api/worlds/<id>/header/<draftId>/approve -H 'Content-Type: application/json' -d '{"chosenIndex":0}'
   curl http://localhost:5099/api/worlds/<id>
   ```
@@ -78,14 +79,13 @@
 
 ## Что в работе / ждёт фидбек
 
-- **F-1.1** в проде локально, ждём оценку пользователем:
-  - качество генерируемых заголовков по разным моделям,
-  - удобство пресетов и формы,
-  - нужны ли стриминг / ретраи / лимит на длину tagline / другие пресеты.
+- **Scale** добавлен как 4-я ось, работает. Нужно обновить спеку F-1.1.
+- **F-1.2** Уровни Сеттинга — следующий шаг. Подход: автономная генерация (без approve), Scale определяет число уровней, результат показывается на странице.
+- Решено: вся инициализация дальше — полностью автономная (одна кнопка → ИИ генерит все блоки). Пользователь видит текст на странице.
 
 ## Следующий логический шаг
 
-После «ок» от пользователя по F-1.1 — открыть обсуждение F-1.2 (Уровни Сеттинга): структура генерации (всё дерево разом vs каскад), формат payload, переиспользование промптовой машинерии из F-1.1.
+После Scale — реализовать F-1.2 (Уровни Сеттинга): автономная генерация дерева локаций по Scale.Levels. Потом F-1.3 (Население) → F-1.4 (Предыстория) → F-1.5 (Истории и Задачи) — всё автономно.
 
 ---
 

@@ -122,6 +122,7 @@ public sealed class WorldsApiController : ControllerBase
             title = world.Title,
             fates = DeserializeFates(world.Fates),
             pacing = world.Pacing,
+            scale = world.Scale,
             status = world.Status.ToString(),
             createdAt = world.CreatedAt,
             header = headerOut,

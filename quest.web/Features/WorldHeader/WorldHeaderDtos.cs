@@ -14,6 +14,7 @@ public sealed record GenerateRequest(
     string? Preset,
     List<string>? Fates,
     string? Pacing,
+    string? Scale,
     string? Model);
 
 public sealed record GenerateResponse(
@@ -35,6 +36,7 @@ public sealed record DraftPayload(
     string? Preset,
     string[]? Fates,
     string? Pacing,
+    string? Scale,
     IReadOnlyList<WorldHeaderOption> Options);
 
 public sealed record ApprovedPayload(
@@ -44,4 +46,5 @@ public sealed record ApprovedPayload(
     string? Preset,
     string[]? Fates,
     string? Pacing,
+    string? Scale,
     IReadOnlyList<WorldHeaderOption> RejectedOptions);
