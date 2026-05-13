@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using quest.db;
@@ -177,10 +178,12 @@ public sealed class WorldHeaderService
 
     private static IReadOnlyList<WorldHeaderOption> ParseOptions(string responseText)
     {
-        ModelOptionsResponse? parsed;
+        var cleaned = StripMarkdownFence(responseText).Trim();
+
+        JsonNode? root;
         try
         {
-            parsed = JsonSerializer.Deserialize<ModelOptionsResponse>(responseText, JsonOpts);
+            root = JsonNode.Parse(cleaned);
         }
         catch (JsonException ex)
         {
@@ -188,10 +191,43 @@ public sealed class WorldHeaderService
                 $"Ollama returned invalid JSON: {ex.Message}. Response: {responseText}", ex);
         }
 
-        if (parsed is null || parsed.Options is null || parsed.Options.Count != 3)
-            throw new InvalidOperationException(
-                $"Expected 3 options, got {parsed?.Options?.Count ?? 0}. Response: {responseText}");
+        var arr = root switch
+        {
+            JsonObject obj when obj["options"] is JsonArray a1 => a1,
+            JsonObject obj when obj["variants"] is JsonArray a2 => a2,
+            JsonArray a3 => a3,
+            _ => null
+        };
 
-        return parsed.Options;
+        if (arr is null || arr.Count != 3)
+            throw new InvalidOperationException(
+                $"Expected 3 options, got {arr?.Count ?? 0}. Response: {responseText}");
+
+        var result = new List<WorldHeaderOption>(3);
+        foreach (var item in arr)
+        {
+            if (item is not JsonObject itemObj)
+                throw new InvalidOperationException($"Option is not an object: {item}");
+            var name    = itemObj["name"]?.GetValue<string>()    ?? itemObj["title"]?.GetValue<string>();
+            var tagline = itemObj["tagline"]?.GetValue<string>() ?? itemObj["annotation"]?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(tagline))
+                throw new InvalidOperationException(
+                    $"Option missing name/tagline. Got: {item}");
+            result.Add(new WorldHeaderOption(name.Trim(), tagline.Trim()));
+        }
+        return result;
+    }
+
+    private static string StripMarkdownFence(string s)
+    {
+        var t = s.Trim();
+        if (!t.StartsWith("```")) return t;
+        // remove opening ```lang\n
+        var firstNl = t.IndexOf('\n');
+        if (firstNl < 0) return t;
+        t = t[(firstNl + 1)..];
+        // remove trailing ```
+        var lastFence = t.LastIndexOf("```", StringComparison.Ordinal);
+        return lastFence < 0 ? t : t[..lastFence];
     }
 }
