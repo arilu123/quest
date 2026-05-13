@@ -52,18 +52,18 @@ public sealed class WorldHeaderService
 
         var model = ResolveModel(request.Model);
         var preset = NormalizePreset(request.Preset);
-        var fate = NormalizeFate(request.Fate);
+        var fates = NormalizeFates(request.Fates);
         var pacing = NormalizePacing(request.Pacing);
 
-        // Тон судьбы и темп завязки — сквозные атрибуты сессии.
-        // Перезаписываем при каждой генерации до approve (после approve финал инита).
         if (world.Status == WorldStatus.Initializing)
         {
-            world.Fate = fate;
+            world.Fates = fates is { Length: > 0 }
+                ? JsonSerializer.Serialize(fates)
+                : null;
             world.Pacing = pacing;
         }
 
-        var userMessage = WorldHeaderPrompt.BuildUserMessage(request.UserHint, preset, fate, pacing);
+        var userMessage = WorldHeaderPrompt.BuildUserMessage(request.UserHint, preset, fates, pacing);
 
         var result = await _ollama.GenerateAsync(
             model: model,
@@ -83,7 +83,7 @@ public sealed class WorldHeaderService
             Version = 0,
             Status = ArtifactStatus.Draft,
             PayloadJson = JsonSerializer.Serialize(
-                new DraftPayload(request.UserHint, preset, fate, pacing, parsed),
+                new DraftPayload(request.UserHint, preset, fates, pacing, parsed),
                 JsonOpts),
             Model = result.Model,
             Prompt = "[SYSTEM]\n" + WorldHeaderPrompt.System + "\n\n[USER]\n" + userMessage,
@@ -151,7 +151,7 @@ public sealed class WorldHeaderService
             Version = nextVersion,
             Status = ArtifactStatus.Approved,
             PayloadJson = JsonSerializer.Serialize(
-                new ApprovedPayload(chosen.Name, chosen.Tagline, draftPayload.UserHint, draftPayload.Preset, draftPayload.Fate, draftPayload.Pacing, rejected),
+                new ApprovedPayload(chosen.Name, chosen.Tagline, draftPayload.UserHint, draftPayload.Preset, draftPayload.Fates, draftPayload.Pacing, rejected),
                 JsonOpts),
             Model = draft.Model,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -184,11 +184,18 @@ public sealed class WorldHeaderService
         return WorldHeaderPresets.All.ContainsKey(key) ? key : null;
     }
 
-    private static string? NormalizeFate(string? fateKey)
+    private static string[]? NormalizeFates(List<string>? fateKeys)
     {
-        if (string.IsNullOrWhiteSpace(fateKey)) return null;
-        var key = fateKey.Trim();
-        return WorldHeaderFates.All.ContainsKey(key) ? key : null;
+        if (fateKeys is null || fateKeys.Count == 0) return null;
+        var valid = fateKeys
+            .Select(k => k?.Trim())
+            .Where(k => !string.IsNullOrEmpty(k))
+            .Cast<string>()
+            .Where(k => WorldHeaderFates.All.ContainsKey(k))
+            .Distinct()
+            .Take(2)
+            .ToArray();
+        return valid.Length == 0 ? null : valid;
     }
 
     private static string? NormalizePacing(string? pacingKey)

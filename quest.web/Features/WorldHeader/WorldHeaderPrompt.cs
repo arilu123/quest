@@ -29,6 +29,8 @@ public static class WorldHeaderPrompt
           (pacing) должны ЗВУЧАТЬ в тексте — атмосферой, ритмом,
           подбором образов и слов. НЕ упоминай их дословно
           («это история про моральный выбор» — НЕЛЬЗЯ).
+          Если указано два тона судьбы — СМЕШАЙ их: ищи общее
+          настроение на пересечении обоих тонов.
             • Тон action / inception → динамичный, рваный ритм, глаголы.
             • Тон pre_storm → напряжённый, выжидающий.
             • Тон slow_build / from_afar → медитативный, плавный.
@@ -57,16 +59,28 @@ public static class WorldHeaderPrompt
         }
         """;
 
-    public static string BuildUserMessage(string? userHint, string? presetKey, string? fateKey, string? pacingKey)
+    public static string BuildUserMessage(string? userHint, string? presetKey, string[]? fateKeys, string? pacingKey)
     {
         var hint = string.IsNullOrWhiteSpace(userHint) ? "нет, сюрприз" : userHint.Trim();
         var preset = string.IsNullOrWhiteSpace(presetKey) ? "не выбран" : presetKey.Trim();
 
         string fateLine;
-        if (!string.IsNullOrWhiteSpace(fateKey) && WorldHeaderFates.All.TryGetValue(fateKey.Trim(), out var f))
-            fateLine = $"Тон судьбы: {fateKey} — {f.Label} ({f.Hint})";
+        if (fateKeys is { Length: > 0 })
+        {
+            var parts = new List<string>();
+            foreach (var fk in fateKeys)
+            {
+                if (WorldHeaderFates.All.TryGetValue(fk.Trim(), out var f))
+                    parts.Add($"{fk} — {f.Label} ({f.Hint})");
+            }
+            fateLine = parts.Count > 0
+                ? "Тон судьбы: " + string.Join(" + ", parts)
+                : "Тон судьбы: не выбран";
+        }
         else
+        {
             fateLine = "Тон судьбы: не выбран";
+        }
 
         string pacingLine;
         if (!string.IsNullOrWhiteSpace(pacingKey) && WorldHeaderPacings.All.TryGetValue(pacingKey.Trim(), out var p))

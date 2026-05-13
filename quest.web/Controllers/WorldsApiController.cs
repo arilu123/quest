@@ -75,6 +75,13 @@ public sealed class WorldsApiController : ControllerBase
         }
     }
 
+    private static string[]? DeserializeFates(string? fatesJson)
+    {
+        if (string.IsNullOrWhiteSpace(fatesJson)) return null;
+        try { return JsonSerializer.Deserialize<string[]>(fatesJson); }
+        catch { return null; }
+    }
+
     [HttpGet("{worldId:guid}")]
     public async Task<IActionResult> Get(Guid worldId, CancellationToken ct)
     {
@@ -113,7 +120,7 @@ public sealed class WorldsApiController : ControllerBase
         {
             id = world.Id,
             title = world.Title,
-            fate = world.Fate,
+            fates = DeserializeFates(world.Fates),
             pacing = world.Pacing,
             status = world.Status.ToString(),
             createdAt = world.CreatedAt,

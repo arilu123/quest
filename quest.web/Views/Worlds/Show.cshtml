@@ -39,7 +39,7 @@
                     <div class="text-muted small">
                         v${j.header.version} · модель ${esc(j.header.model || '?')}
                         ${j.header.preset ? ' · пресет ' + esc(j.header.preset) : ''}
-                        ${j.fate ? ' · судьба ' + esc(j.fate) : ''}
+                        ${j.fates && j.fates.length ? ' · судьба ' + j.fates.map(esc).join(' + ') : ''}
                         ${j.pacing ? ' · темп ' + esc(j.pacing) : ''}
                     </div>`;
             } catch (e) {

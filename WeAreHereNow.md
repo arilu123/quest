@@ -4,9 +4,9 @@
 
 ## Где сейчас
 
-**После F-1.1.** End-to-end Шаг 1 инициализации [Мира] (заголовок: название + tagline) собран, протестирован curl-ом, работает. UI на `/Worlds/Start`. Пользователь сейчас «щупает руками» — открыл страницу, генерирует, смотрит результат. Ждём фидбек по UX/качеству промпта/моделям прежде чем двигаться к F-1.2.
+**После F-1.1 + мультиселект Fate.** End-to-end Шаг 1 инициализации [Мира] (заголовок: название + tagline) собран, протестирован curl-ом, работает. UI на `/Worlds/Start`. Тон судьбы теперь мультиселект (0–2 из 6). Пользователь сейчас «щупает руками». Ждём фидбек прежде чем двигаться к F-1.2.
 
-Сервер был оставлен запущенным в фоне (task id **`bzo4xivu1`**, порт **5099**) чтобы пользователь мог потрогать. Возможно ещё работает — проверь `lsof -i:5099` или `TaskStop`.
+Сервер был оставлен запущенным в фоне (порт **5099**) чтобы пользователь мог потрогать. Проверь `lsof -i:5099`.
 
 ## Что сделано
 
@@ -41,7 +41,7 @@
 - **Язык MVP**: только русский. Мультиязычность отложена.
 - **TypeScript**: отложен. Vanilla JS в Razor-страницах. Включим, когда фронта будет много.
 - **Аутентификация**: нет, single-user.
-- **Тон судьбы (Fate)** — сквозной атрибут [Истории], выбирается на форме старта одним из 6 вариантов (adventure/moral/mystery/drama/survival/intimate) или пусто. Хранится на `World.Fate` (а не в payload одного артефакта), потому что должен прорастать в промпты всех будущих шагов инициализации. До approve перезаписывается каждой генерацией. Список — `Features/WorldHeader/WorldHeaderFates.cs`.
+- **Тоны судьбы (Fates)** — сквозной атрибут [Истории], выбирается на форме старта **от 0 до 2** из 6 вариантов (adventure/moral/mystery/drama/survival/intimate). Хранится на `World.Fates` как JSON-массив в колонке `text` (раньше был `World.Fate` — одиночный `varchar(32)`). Миграция `FateToArray` — дропает `Fate`, добавляет `Fates`. В промпте два тона соединяются через «+», а system-промпт говорит «смешай их: ищи общее настроение на пересечении». DTO: `GenerateRequest.Fates` (`List<string>?`), `DraftPayload.Fates` / `ApprovedPayload.Fates` (`string[]?`). UI: toggle-чипы (клик = вкл/выкл), максимум 2 активных.
 - **Темп завязки (Pacing)** — ещё один сквозной атрибут, 5 вариантов (action/inception/pre_storm/slow_build/from_afar) или пусто. Хранится на `World.Pacing`, логика та же что у Fate. Список — `Features/WorldHeader/WorldHeaderPacings.cs`.
 - **Аннотация = задняя обложка книги**. В system-промпте явно требуется: 1–2 предложения, хук, интрига без спойлеров. Выбранные стиль/судьба/темп должны **звучать в тексте** (атмосферой и образами), но не упоминаться дословно. `tagline.maxLength` в JSON Schema = 320 (было 240). Это критично — раньше при смене Fate текст не менялся видимо для пользователя, потому что промпт не требовал отражения. Сейчас требует.
 - **Чипы на форме не пишут в textarea** «Пожелания к миру». Раньше клик по Style-пресету REPLACE-ил текст в поле (что было неконсистентно и могло убивать ручной ввод). Сейчас все три чипа (Стиль/Судьба/Темп) — просто маркеры выбора + tooltip. Под формой добавлена строка-предпросмотр «В ИИ уйдёт: ...» — динамически обновляется при клике чипа и при печати.
@@ -65,7 +65,7 @@
 - API смоук:
   ```
   curl -X POST http://localhost:5099/api/worlds
-  curl -X POST http://localhost:5099/api/worlds/<id>/header/generate -H 'Content-Type: application/json' -d '{"userHint":"...", "preset":"mythic", "model":"mistral-small3.2:24b-instruct-2506-q4_K_M"}'
+  curl -X POST http://localhost:5099/api/worlds/<id>/header/generate -H 'Content-Type: application/json' -d '{"userHint":"...", "preset":"mythic", "fates":["mystery","survival"], "model":"mistral-small3.2:24b-instruct-2506-q4_K_M"}'
   curl -X POST http://localhost:5099/api/worlds/<id>/header/<draftId>/approve -H 'Content-Type: application/json' -d '{"chosenIndex":0}'
   curl http://localhost:5099/api/worlds/<id>
   ```

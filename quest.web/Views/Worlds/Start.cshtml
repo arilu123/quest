@@ -12,6 +12,10 @@
 </div>
 
 <form id="form-generate" class="mb-4">
+    <style>
+        .fate-chip.fate-maxed:not(:hover) { opacity: 0.5; }
+        .fate-chip.fate-maxed:hover { background: var(--bs-danger-bg-subtle, #f8d7da); border-color: var(--bs-danger, #dc3545); color: var(--bs-danger, #dc3545); cursor: not-allowed; }
+    </style>
     <div class="mb-3">
         <label class="form-label">Пожелания к миру <small class="text-muted">(свободный текст; чипы ниже выбираются независимо)</small></label>
         <textarea id="user-hint" class="form-control" rows="3"
@@ -31,7 +35,7 @@
     </div>
 
     <div class="mb-3">
-        <label class="form-label">Тон судьбы <small class="text-muted">(тип переживания, влияет на тон всей [Истории])</small></label>
+        <label class="form-label">Тон судьбы <small class="text-muted">(0–2, тип переживания, влияет на всю [Историю])</small></label>
         <div id="fate-chips" class="d-flex flex-wrap gap-2">
             @foreach (dynamic f in fates)
             {
@@ -101,7 +105,7 @@
             const optionsEl = document.getElementById('options');
 
             let selectedPreset = null;
-            let selectedFate = null;
+            let selectedFates = [];
             let selectedPacing = null;
             let worldId = null;
             let draftId = null;
@@ -118,6 +122,22 @@
                 });
             }
 
+            function updateActiveChipsMulti(chips, selectedKeys) {
+                const set = new Set(selectedKeys);
+                const full = selectedKeys.length >= 2;
+                chips.forEach(c => {
+                    if (set.has(c.dataset.key)) {
+                        c.classList.remove('btn-outline-secondary', 'fate-maxed');
+                        c.classList.add('btn-secondary');
+                    } else {
+                        c.classList.remove('btn-secondary');
+                        c.classList.add('btn-outline-secondary');
+                        if (full) c.classList.add('fate-maxed');
+                        else c.classList.remove('fate-maxed');
+                    }
+                });
+            }
+
             const previewContent = document.getElementById('preview-content');
 
             function labelOf(chips, key) {
@@ -128,7 +148,7 @@
             function updatePreview() {
                 const parts = [];
                 if (selectedPreset) parts.push(`<b>стиль:</b> ${labelOf(presetChips, selectedPreset)}`);
-                if (selectedFate)   parts.push(`<b>судьба:</b> ${labelOf(fateChips, selectedFate)}`);
+                if (selectedFates.length) parts.push(`<b>судьба:</b> ${selectedFates.map(k => labelOf(fateChips, k)).join(' + ')}`);
                 if (selectedPacing) parts.push(`<b>темп:</b> ${labelOf(pacingChips, selectedPacing)}`);
                 const hint = hintEl.value.trim();
                 if (hint) parts.push(`<b>пожелания:</b> «${escapeHtml(hint)}»`);
@@ -153,14 +173,20 @@
 
             fateChips.forEach(chip => {
                 chip.addEventListener('click', () => {
-                    selectedFate = chip.dataset.key;
-                    updateActiveChip(fateChips, selectedFate);
+                    const key = chip.dataset.key;
+                    const idx = selectedFates.indexOf(key);
+                    if (idx >= 0) {
+                        selectedFates.splice(idx, 1);
+                    } else if (selectedFates.length < 2) {
+                        selectedFates.push(key);
+                    }
+                    updateActiveChipsMulti(fateChips, selectedFates);
                     updatePreview();
                 });
             });
             fateClear.addEventListener('click', () => {
-                selectedFate = null;
-                updateActiveChip(fateChips, null);
+                selectedFates = [];
+                updateActiveChipsMulti(fateChips, []);
                 updatePreview();
             });
 
@@ -221,7 +247,7 @@
                     const body = {
                         userHint: hintEl.value.trim() || null,
                         preset: selectedPreset,
-                        fate: selectedFate,
+                        fates: selectedFates.length > 0 ? selectedFates : null,
                         pacing: selectedPacing,
                         model: modelEl.value
                     };
