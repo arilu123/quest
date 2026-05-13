@@ -1,0 +1,186 @@
+@{
+    var presets = (Array)ViewBag.Presets;
+    var models  = (Array)ViewBag.Models;
+    var defaultModel = (string)ViewBag.DefaultModel;
+}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="h3 mb-0">Новый Мир</h1>
+    <small class="text-muted">Шаг 1 / N — заголовок Мира</small>
+</div>
+
+<form id="form-generate" class="mb-4">
+    <div class="mb-3">
+        <label class="form-label">Пожелания к миру</label>
+        <textarea id="user-hint" class="form-control" rows="3"
+                  placeholder="Опиши, какой мир хочешь. Можно оставить пустым — будет сюрприз."></textarea>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Пресет (необязательно)</label>
+        <div id="preset-chips" class="d-flex flex-wrap gap-2">
+            @foreach (dynamic p in presets)
+            {
+                <button type="button" class="btn btn-outline-secondary btn-sm preset-chip"
+                        data-key="@p.key" data-hint="@p.hint">@p.label</button>
+            }
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="preset-clear">× очистить</button>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Модель <small class="text-muted">(сверху — лучше для нашей задачи)</small></label>
+        <select id="model" class="form-select">
+            @foreach (dynamic m in models)
+            {
+                var label = $"{m.name} · {m.family}" + (string.IsNullOrEmpty((string?)m.note) ? "" : $" — {m.note}");
+                if (m.name == defaultModel)
+                {
+                    <option value="@m.name" selected>@label</option>
+                }
+                else
+                {
+                    <option value="@m.name">@label</option>
+                }
+            }
+        </select>
+    </div>
+
+    <button type="submit" class="btn btn-primary" id="btn-generate">
+        Создать варианты
+    </button>
+    <span id="status" class="ms-3 text-muted"></span>
+</form>
+
+<div id="options" class="row g-3"></div>
+
+@section Scripts {
+    <script>
+        (function () {
+            const presetChips = document.querySelectorAll('.preset-chip');
+            const presetClear = document.getElementById('preset-clear');
+            const hintEl = document.getElementById('user-hint');
+            const modelEl = document.getElementById('model');
+            const form = document.getElementById('form-generate');
+            const btn = document.getElementById('btn-generate');
+            const statusEl = document.getElementById('status');
+            const optionsEl = document.getElementById('options');
+
+            let selectedPreset = null;
+            let worldId = null;
+            let draftId = null;
+
+            function updateChipsUi() {
+                presetChips.forEach(c => {
+                    if (c.dataset.key === selectedPreset) {
+                        c.classList.remove('btn-outline-secondary');
+                        c.classList.add('btn-secondary');
+                    } else {
+                        c.classList.add('btn-outline-secondary');
+                        c.classList.remove('btn-secondary');
+                    }
+                });
+            }
+
+            presetChips.forEach(chip => {
+                chip.addEventListener('click', () => {
+                    selectedPreset = chip.dataset.key;
+                    hintEl.value = chip.dataset.hint;
+                    updateChipsUi();
+                });
+            });
+
+            presetClear.addEventListener('click', () => {
+                selectedPreset = null;
+                hintEl.value = '';
+                updateChipsUi();
+            });
+
+            async function ensureWorld() {
+                if (worldId) return worldId;
+                const r = await fetch('/api/worlds', { method: 'POST' });
+                if (!r.ok) throw new Error('Не удалось создать мир');
+                const j = await r.json();
+                worldId = j.id;
+                return worldId;
+            }
+
+            function renderOptions(options) {
+                optionsEl.innerHTML = '';
+                options.forEach((opt, i) => {
+                    const col = document.createElement('div');
+                    col.className = 'col-md-4';
+                    col.innerHTML = `
+                        <div class="card h-100">
+                          <div class="card-body d-flex flex-column">
+                            <h5 class="card-title">${escapeHtml(opt.name)}</h5>
+                            <p class="card-text flex-grow-1">${escapeHtml(opt.tagline)}</p>
+                            <button class="btn btn-success mt-3" data-idx="${i}">Выбрать</button>
+                          </div>
+                        </div>`;
+                    col.querySelector('button').addEventListener('click', () => approve(i));
+                    optionsEl.appendChild(col);
+                });
+            }
+
+            function escapeHtml(s) {
+                return String(s).replace(/[&<>"']/g, c =>
+                    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            }
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                btn.disabled = true;
+                statusEl.textContent = 'Думаю…';
+                optionsEl.innerHTML = '';
+                try {
+                    const id = await ensureWorld();
+                    const body = {
+                        userHint: hintEl.value.trim() || null,
+                        preset: selectedPreset,
+                        model: modelEl.value
+                    };
+                    const t0 = performance.now();
+                    const r = await fetch(`/api/worlds/${id}/header/generate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                    const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+                    if (!r.ok) {
+                        const t = await r.text();
+                        throw new Error(`HTTP ${r.status}: ${t}`);
+                    }
+                    const j = await r.json();
+                    draftId = j.draftId;
+                    statusEl.textContent = `Готово за ${elapsed} с · модель ${j.model}` +
+                        (j.durationMs ? ` · ИИ ${(j.durationMs/1000).toFixed(1)} с` : '');
+                    renderOptions(j.options);
+                } catch (err) {
+                    statusEl.innerHTML = `<span class="text-danger">${escapeHtml(err.message)}</span>`;
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+
+            async function approve(idx) {
+                if (!worldId || !draftId) return;
+                statusEl.textContent = 'Сохраняю…';
+                try {
+                    const r = await fetch(`/api/worlds/${worldId}/header/${draftId}/approve`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ chosenIndex: idx })
+                    });
+                    if (!r.ok) {
+                        const t = await r.text();
+                        throw new Error(`HTTP ${r.status}: ${t}`);
+                    }
+                    window.location.href = `/Worlds/${worldId}`;
+                } catch (err) {
+                    statusEl.innerHTML = `<span class="text-danger">${escapeHtml(err.message)}</span>`;
+                }
+            }
+        })();
+    </script>
+}

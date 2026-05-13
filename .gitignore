@@ -1,0 +1,40 @@
+# .NET build output
+**/bin/
+**/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider / Visual Studio / VS Code
+.vs/
+.idea/
+.vscode/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# NuGet
+*.nupkg
+.nuget/
+
+# Logs
+*.log
+logs/
+
+# ASP.NET Core local secrets (если появятся)
+**/secrets.json
+
+# Node / TypeScript (на будущее)
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Тестовые покрытия
+coverage/
+*.coverage
+TestResults/
+
+# Файлы IDE-ассистентов
+.claude/

@@ -1,0 +1,52 @@
+@model quest.db.World
+
+<div class="mb-4">
+    <h1 class="display-5 mb-2">@(Model.Title ?? "Мир без названия")</h1>
+    <div class="text-muted small">
+        Id: <code>@Model.Id</code> ·
+        статус: <span class="badge bg-secondary">@Model.Status</span> ·
+        создан @Model.CreatedAt.LocalDateTime.ToString("g")
+    </div>
+</div>
+
+<div id="header-box" class="card mb-3">
+    <div class="card-body">
+        <div class="text-muted small">Заголовок (Approved)</div>
+        <div id="header-content" class="mt-2">загружаю…</div>
+    </div>
+</div>
+
+<p class="text-muted">
+    Шаг 2 (Уровни Сеттинга) ещё не реализован.
+    <a asp-controller="Worlds" asp-action="Start">Создать ещё один мир</a>.
+</p>
+
+@section Scripts {
+    <script>
+        (async function () {
+            const id = '@Model.Id';
+            const box = document.getElementById('header-content');
+            try {
+                const r = await fetch(`/api/worlds/${id}`);
+                const j = await r.json();
+                if (!j.header) {
+                    box.innerHTML = '<em>Approved-заголовок не найден.</em>';
+                    return;
+                }
+                box.innerHTML = `
+                    <h3 class="h4 mb-2">${esc(j.header.name)}</h3>
+                    <p class="mb-2">${esc(j.header.tagline)}</p>
+                    <div class="text-muted small">
+                        v${j.header.version} · модель ${esc(j.header.model || '?')}
+                        ${j.header.preset ? ' · пресет ' + esc(j.header.preset) : ''}
+                    </div>`;
+            } catch (e) {
+                box.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`;
+            }
+            function esc(s) {
+                return String(s ?? '').replace(/[&<>"']/g, c =>
+                    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            }
+        })();
+    </script>
+}
