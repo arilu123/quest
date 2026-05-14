@@ -1,10 +1,23 @@
-using System.Text.Json.Nodes;
+using quest.web.Services.KeyValue;
 
 namespace quest.web.Features.WorldOverview;
 
+/// <summary>
+/// Промпт шага «общее описание [Мира]». Один артефакт за вызов.
+/// Slug строит приложение (см. specs/F-format-strategy.md), модель этого не делает.
+/// </summary>
 public static class WorldOverviewPrompt
 {
-    public const string System = """
+    private static readonly KvFormatter.FieldSpec[] Fields =
+    {
+        new("DESCR",
+            "содержательное описание мира для ИИ-ведущего: что это за место, " +
+            "его устройство, масштаб, ключевые характеристики (можно несколько абзацев)",
+            Multiline: true,
+            Example: "Действие происходит в подземном бункере, последнем убежище человечества после Великой Пыли...\nВ бункере живёт около двух тысяч человек, разделённых на касты по доступу к ресурсам..."),
+    };
+
+    public static string System { get; } = """
         Ты — соавтор интерактивной книги-квеста. Сейчас идёт шаг
         инициализации [Сеттинга] — внутреннего описания мира для
         ИИ-ведущего. Игрок этот текст НЕ видит.
@@ -24,22 +37,10 @@ public static class WorldOverviewPrompt
         - Учти выбранный масштаб: он определяет размер мира.
         - Учти жанр, тон судьбы, темп завязки — пусть они
           чувствуются в описании мира.
-        - Придумай короткий английский PascalCase-идентификатор
-          для мира (одно-два слова без пробелов, например
-          "ShipNostromo", "UndergroundBunker", "GalacticFrontier").
+        - Не повторяй название мира и не пересказывай аннотацию —
+          они уже даны во входных данных. Описывай само устройство.
 
-        ФОРМАТ ОТВЕТА: только валидный JSON-объект с полями:
-        - "slug" — английский PascalCase идентификатор
-        - "name" — название мира на русском (уже известно, повтори его)
-        - "description" — описание мира
-
-        Образец:
-        {
-          "slug": "UndergroundBunker",
-          "name": "Последний свет",
-          "description": "Действие происходит в подземном бункере..."
-        }
-        """;
+        """ + KvFormatter.FormatInstruction(Fields, recordCount: 1);
 
     public static string BuildUserMessage(
         string worldName,
@@ -77,7 +78,7 @@ public static class WorldOverviewPrompt
 
         string scaleLine;
         if (!string.IsNullOrWhiteSpace(scaleKey) && WorldHeader.WorldHeaderScales.All.TryGetValue(scaleKey.Trim(), out var sc))
-            scaleLine = $"{sc.Label} ({sc.Hint}), уровней: {sc.Levels}";
+            scaleLine = $"{sc.Label} (Например: {sc.Hint}), будет уровней вложенности: {sc.Levels}, но сейчас тебе нужно описать только верхиний уровень";
         else
             scaleLine = "не выбран";
 
@@ -89,17 +90,4 @@ public static class WorldOverviewPrompt
                $"Темп завязки: {pacingLine}\n" +
                $"Масштаб: {scaleLine}";
     }
-
-    public static JsonNode JsonSchema() => JsonNode.Parse("""
-        {
-          "type": "object",
-          "properties": {
-            "slug":        { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Z][a-zA-Z0-9]*$" },
-            "name":        { "type": "string", "minLength": 1, "maxLength": 120 },
-            "description": { "type": "string", "minLength": 10 }
-          },
-          "required": ["slug", "name", "description"],
-          "additionalProperties": false
-        }
-        """)!;
 }

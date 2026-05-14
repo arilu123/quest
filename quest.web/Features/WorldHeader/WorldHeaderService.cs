@@ -1,8 +1,8 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using quest.db;
+using quest.web.Services.KeyValue;
 using quest.web.Services.Ollama;
 
 namespace quest.web.Features.WorldHeader;
@@ -72,7 +72,6 @@ public sealed class WorldHeaderService
             model: model,
             systemPrompt: WorldHeaderPrompt.System,
             userPrompt: userMessage,
-            formatSchema: WorldHeaderPrompt.JsonSchema(),
             ct: ct);
 
         var parsed = ParseOptions(result.Text);
@@ -217,56 +216,27 @@ public sealed class WorldHeaderService
 
     private static IReadOnlyList<WorldHeaderOption> ParseOptions(string responseText)
     {
-        var cleaned = StripMarkdownFence(responseText).Trim();
-
-        JsonNode? root;
-        try
-        {
-            root = JsonNode.Parse(cleaned);
-        }
-        catch (JsonException ex)
+        IReadOnlyList<KvRecord> records;
+        try { records = KvParser.ParseAll(responseText); }
+        catch (KvParseException ex)
         {
             throw new InvalidOperationException(
-                $"Ollama returned invalid JSON: {ex.Message}. Response: {responseText}", ex);
+                $"Не удалось распарсить ответ модели как kv-записи: {ex.Message}. Сырой ответ: {responseText}", ex);
         }
 
-        var arr = root switch
-        {
-            JsonObject obj when obj["options"] is JsonArray a1 => a1,
-            JsonObject obj when obj["variants"] is JsonArray a2 => a2,
-            JsonArray a3 => a3,
-            _ => null
-        };
-
-        if (arr is null || arr.Count != 3)
+        if (records.Count != 3)
             throw new InvalidOperationException(
-                $"Expected 3 options, got {arr?.Count ?? 0}. Response: {responseText}");
+                $"Ожидалось 3 записи, получено {records.Count}. Сырой ответ: {responseText}");
 
         var result = new List<WorldHeaderOption>(3);
-        foreach (var item in arr)
+        foreach (var r in records)
         {
-            if (item is not JsonObject itemObj)
-                throw new InvalidOperationException($"Option is not an object: {item}");
-            var name    = itemObj["name"]?.GetValue<string>()    ?? itemObj["title"]?.GetValue<string>();
-            var tagline = itemObj["tagline"]?.GetValue<string>() ?? itemObj["annotation"]?.GetValue<string>();
-            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(tagline))
-                throw new InvalidOperationException(
-                    $"Option missing name/tagline. Got: {item}");
+            if (!r.TryGet("NAME", out var name) || string.IsNullOrWhiteSpace(name))
+                throw new InvalidOperationException($"В записи нет поля NAME. Поля: {string.Join(", ", r.Fields.Keys)}");
+            if (!r.TryGet("TAGLINE", out var tagline) || string.IsNullOrWhiteSpace(tagline))
+                throw new InvalidOperationException($"В записи нет поля TAGLINE. Поля: {string.Join(", ", r.Fields.Keys)}");
             result.Add(new WorldHeaderOption(name.Trim(), tagline.Trim()));
         }
         return result;
-    }
-
-    private static string StripMarkdownFence(string s)
-    {
-        var t = s.Trim();
-        if (!t.StartsWith("```")) return t;
-        // remove opening ```lang\n
-        var firstNl = t.IndexOf('\n');
-        if (firstNl < 0) return t;
-        t = t[(firstNl + 1)..];
-        // remove trailing ```
-        var lastFence = t.LastIndexOf("```", StringComparison.Ordinal);
-        return lastFence < 0 ? t : t[..lastFence];
     }
 }

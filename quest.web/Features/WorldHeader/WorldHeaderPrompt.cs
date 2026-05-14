@@ -1,14 +1,24 @@
-using System.Text.Json.Nodes;
+using quest.web.Services.KeyValue;
 
 namespace quest.web.Features.WorldHeader;
 
 /// <summary>
-/// Промпт и JSON-схема для шага 1 инициализации [Мира].
-/// См. specs/F-1.1-world-header.md.
+/// Промпт для шага 1 инициализации [Мира] — генерация 3 вариантов «обложки».
+/// Формат ответа — общий kv (см. specs/F-format-strategy.md). Это единственное
+/// место, где у нас несколько записей за один вызов (исключение из правила
+/// «один артефакт = один вызов»).
 /// </summary>
 public static class WorldHeaderPrompt
 {
-    public const string System = """
+    private static readonly KvFormatter.FieldSpec[] Fields =
+    {
+        new("NAME",    "название мира на русском, 1–4 слова без штампов",
+            Example: "Хроники Зелёного Руина"),
+        new("TAGLINE", "литературная аннотация задней обложки, 1–2 предложения до 320 символов",
+            Example: "Когда города поглотил лес, а древние технологии стали ядом — только тот, кто найдёт последний ключ от Земли, спасёт оставшихся."),
+    };
+
+    public static string System { get; } = """
         Ты — соавтор интерактивной книги-квеста. Сейчас идёт первый шаг
         инициализации нового [Мира] для игрока.
 
@@ -44,20 +54,7 @@ public static class WorldHeaderPrompt
           но все три остаются в выбранных жанре, тоне и темпе.
         - Учти свободные пожелания игрока, если они даны.
 
-        ФОРМАТ ОТВЕТА: только валидный JSON-объект, ровно по этому
-        образцу. Используй ровно эти имена полей: "options", "name",
-        "tagline". Никаких других полей, пояснений, markdown,
-        тройных кавычек. Только JSON-объект, начинающийся с «{».
-
-        Образец:
-        {
-          "options": [
-            { "name": "Название первое",  "tagline": "Аннотация первого мира одним-двумя предложениями." },
-            { "name": "Название второе",  "tagline": "Аннотация второго мира одним-двумя предложениями." },
-            { "name": "Название третье",  "tagline": "Аннотация третьего мира одним-двумя предложениями." }
-          ]
-        }
-        """;
+        """ + KvFormatter.FormatInstruction(Fields, recordCount: 3);
 
     public static string BuildUserMessage(string? userHint, string? presetKey, string[]? fateKeys, string? pacingKey, string? scaleKey)
     {
@@ -96,28 +93,4 @@ public static class WorldHeaderPrompt
 
         return $"Пожелания игрока: «{hint}»\nПресет стиля: {preset}\n{fateLine}\n{pacingLine}\n{scaleLine}";
     }
-
-    public static JsonNode JsonSchema() => JsonNode.Parse("""
-        {
-          "type": "object",
-          "properties": {
-            "options": {
-              "type": "array",
-              "minItems": 3,
-              "maxItems": 3,
-              "items": {
-                "type": "object",
-                "properties": {
-                  "name":    { "type": "string", "minLength": 1, "maxLength": 60 },
-                  "tagline": { "type": "string", "minLength": 1, "maxLength": 320 }
-                },
-                "required": ["name", "tagline"],
-                "additionalProperties": false
-              }
-            }
-          },
-          "required": ["options"],
-          "additionalProperties": false
-        }
-        """)!;
 }

@@ -1,9 +1,10 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using quest.db;
+using quest.web.Services.KeyValue;
 using quest.web.Services.Ollama;
+using quest.web.Services.Slug;
 
 namespace quest.web.Features.WorldOverview;
 
@@ -64,14 +65,13 @@ public sealed class WorldOverviewService
             world.Scale);
 
         var systemPrompt = WorldOverviewPrompt.System;
-        var schema = WorldOverviewPrompt.JsonSchema();
 
         OllamaGenerateResult? result = null;
-        (string Slug, string Name, string Description) parsed = default;
+        string description = "";
 
         for (var attempt = 1; attempt <= MaxRetries; attempt++)
         {
-            result = await _ollama.GenerateAsync(model, systemPrompt, userMessage, schema, ct);
+            result = await _ollama.GenerateAsync(model, systemPrompt, userMessage, ct: ct);
 
             if (string.IsNullOrWhiteSpace(result.Text))
             {
@@ -87,7 +87,7 @@ public sealed class WorldOverviewService
 
             try
             {
-                parsed = ParseResponse(result.Text);
+                description = ParseDescription(result.Text);
                 break;
             }
             catch (InvalidOperationException ex) when (attempt < MaxRetries)
@@ -98,17 +98,19 @@ public sealed class WorldOverviewService
             }
         }
 
+        var slug = Slugger.ToPascal(headerPayload.Name);
+
         var artifact = new Artifact
         {
             Id = Guid.NewGuid(),
             WorldId = worldId,
             Kind = ArtifactKind.World,
-            ArtifactId = $"World.{parsed.Slug}",
-            Name = parsed.Name,
+            ArtifactId = $"World.{slug}",
+            Name = headerPayload.Name,
             Stage = ArtifactStage.Initialization,
             Version = 1,
             Status = ArtifactStatus.Approved,
-            PayloadJson = JsonSerializer.Serialize(new { description = parsed.Description }, JsonOpts),
+            PayloadJson = JsonSerializer.Serialize(new { description }, JsonOpts),
             Model = result!.Model,
             Prompt = "[SYSTEM]\n" + systemPrompt + "\n\n[USER]\n" + userMessage,
             RawResponse = result.Text,
@@ -130,53 +132,20 @@ public sealed class WorldOverviewService
         catch { return null; }
     }
 
-    private static (string Slug, string Name, string Description) ParseResponse(string text)
+    private static string ParseDescription(string raw)
     {
-        var cleaned = text.Trim();
-        if (cleaned.StartsWith("```"))
+        KvRecord record;
+        try { record = KvParser.ParseSingle(raw); }
+        catch (KvParseException ex)
         {
-            var firstNl = cleaned.IndexOf('\n');
-            if (firstNl >= 0) cleaned = cleaned[(firstNl + 1)..];
-            var lastFence = cleaned.LastIndexOf("```", StringComparison.Ordinal);
-            if (lastFence >= 0) cleaned = cleaned[..lastFence];
+            throw new InvalidOperationException(
+                $"Не удалось распарсить ответ модели как kv-запись: {ex.Message}. Сырой ответ: {raw}", ex);
         }
 
-        JsonNode? root;
-        try { root = JsonNode.Parse(cleaned.Trim()); }
-        catch (JsonException)
-        {
-            var descStart = cleaned.IndexOf("\"description\"");
-            if (descStart >= 0)
-            {
-                var valStart = cleaned.IndexOf('"', descStart + 13);
-                if (valStart >= 0)
-                {
-                    var valEnd = cleaned.LastIndexOf('"');
-                    if (valEnd > valStart)
-                    {
-                        var desc = cleaned.Substring(valStart + 1, valEnd - valStart - 1)
-                            .Replace("\\n", "\n").Replace("\\\"", "\"");
-                        var slugMatch = System.Text.RegularExpressions.Regex.Match(cleaned, @"""slug""\s*:\s*""([^""]+)""");
-                        var nameMatch = System.Text.RegularExpressions.Regex.Match(cleaned, @"""name""\s*:\s*""([^""]+)""");
-                        var slugVal = slugMatch.Success ? slugMatch.Groups[1].Value : "Unknown";
-                        var nameVal = nameMatch.Success ? nameMatch.Groups[1].Value : "Без названия";
-                        return (slugVal, nameVal, desc);
-                    }
-                }
-            }
-            throw new InvalidOperationException($"Invalid JSON in WorldOverview response. Raw: {text}");
-        }
+        if (!record.TryGet("DESCR", out var description) || string.IsNullOrWhiteSpace(description))
+            throw new InvalidOperationException(
+                $"В записи нет поля DESCR. Поля: {string.Join(", ", record.Fields.Keys)}. Сырой ответ: {raw}");
 
-        if (root is not JsonObject obj)
-            throw new InvalidOperationException($"Expected JSON object, got: {root?.GetType().Name}. Raw: {text}");
-
-        var slug = obj["slug"]?.GetValue<string>()?.Trim()
-            ?? throw new InvalidOperationException($"Missing 'slug' in response. Raw: {text}");
-        var name = obj["name"]?.GetValue<string>()?.Trim()
-            ?? throw new InvalidOperationException($"Missing 'name' in response. Raw: {text}");
-        var description = obj["description"]?.GetValue<string>()?.Trim()
-            ?? throw new InvalidOperationException($"Missing 'description' in response. Raw: {text}");
-
-        return (slug, name, description);
+        return description.Trim();
     }
 }
